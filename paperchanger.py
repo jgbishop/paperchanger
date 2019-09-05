@@ -10,6 +10,12 @@ from shutil import copyfile
 from PIL import Image
 
 
+USERHOME = os.path.expanduser("~")
+LOCKSCREEN_PATH = os.path.join(USERHOME, "AppData", "Local", "Packages",
+                               "Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy",
+                               "LocalState", "Assets")
+
+
 class ConfigData:
     def __init__(self, path):
         self.cfg_path = path
@@ -70,15 +76,10 @@ def find_lockscreen_files(cfg):
     if(not os.path.exists(staging)):
         os.mkdir(staging)
 
-    userhome = os.path.expanduser("~")
-    store = os.path.join(userhome, "AppData", "Local", "Packages",
-                         "Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy",
-                         "LocalState", "Assets")
-
     lspool = cfg.get('lock_screen_pool', [])
     lspool_set = set(lspool)
 
-    for f in os.scandir(store):
+    for f in os.scandir(LOCKSCREEN_PATH):
         if(not f.is_file()):
             continue
 
@@ -135,6 +136,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 parser = argparse.ArgumentParser(description="Changes the desktop wallpaper.")
 parser.add_argument('config_file', default="paper_changer.cfg", nargs="?")
 parser.add_argument('--create', help="Create a new config file; pass in the target dir to use")
+parser.add_argument('--lockbrowse', action="store_true", help="Open the lock screen source folder")
 parser.add_argument('--lockscan', action="store_true",
                     help="Scan for Microsoft lock screen images")
 parser.add_argument('--locksync', action='store_true',
@@ -167,6 +169,11 @@ if(args.create):
 
     cfg.save()
     print(" - Config file created; exiting!")
+    sys.exit(0)
+
+if(args.lockbrowse):
+    print("Opening lock screen image source folder")
+    os.startfile(LOCKSCREEN_PATH)
     sys.exit(0)
 
 if(not cfg.load()):
