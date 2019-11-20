@@ -233,9 +233,12 @@ if(not pool):
     pool = list(papers.keys())
 
 if(args.pool):
-    print(f"Files in the selection pool: {len(pool)}")
+    print("Files in the selection pool:")
     for x in sorted(pool):
         print(f"  {x}")
+
+    noun = "file" if len(pool) == 1 else "files"
+    print(f"Found {len(pool)} {noun}")
     sys.exit(0)
 
 # Select a random item from the list
