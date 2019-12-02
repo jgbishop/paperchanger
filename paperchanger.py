@@ -79,6 +79,7 @@ def find_lockscreen_files(cfg):
     lspool = cfg.get('lock_screen_pool', [])
     lspool_set = set(lspool)
 
+    has_candidate = False
     for f in os.scandir(LOCKSCREEN_PATH):
         if(not f.is_file()):
             continue
@@ -102,13 +103,15 @@ def find_lockscreen_files(cfg):
                 print("   Skipping (already parsed)")
                 continue
 
+            has_candidate = True
             lspool.append(f.name)
             short_hash = f.name[:16]
 
             copyfile(f.path, os.path.join(staging, f"lock_screen_{short_hash}.jpg"))
 
     # Open Windows Explorer to the staging location
-    os.startfile(staging)
+    if(has_candidate):
+        os.startfile(staging)
 
 
 def move_staging_files(cfg):
