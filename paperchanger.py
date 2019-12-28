@@ -96,12 +96,11 @@ def find_lockscreen_files(cfg):
             if(width < height):
                 continue
 
+            if(f.name in lspool_set):
+                continue
+
             print(f" - Found candidate image of size {size}: {f.name}")
             print(f"   Dimensions: {width} x {height}")
-
-            if(f.name in lspool_set):
-                print("   Skipping (already parsed)")
-                continue
 
             has_candidate = True
             lspool.append(f.name)
@@ -112,6 +111,8 @@ def find_lockscreen_files(cfg):
     # Open Windows Explorer to the staging location
     if(has_candidate):
         os.startfile(staging)
+    else:
+        print(" - No candidates found")
 
 
 def move_staging_files(cfg):
