@@ -36,7 +36,17 @@ class ConfigData:
     def load(self):
         try:
             with open(self.cfg_path, 'r') as f:
-                self.data = json.loads(f.read())
+                temp = json.loads(f.read())
+
+                # Convert recently seen into a flatter map (we cannot store
+                # it in the flatter variation, due to JSON limitations)
+                recently_seen = temp.pop('recently_seen', {})
+                temp.setdefault('recently_seen', {})
+                for filename, info in recently_seen.items():
+                    key = (filename, info.get('hash'))
+                    temp['recently_seen'].setdefault(key, info.get('when'))
+
+                self.data = temp
 
             if('CONFIG_VERSION' in self.data):
                 return True
@@ -50,6 +60,17 @@ class ConfigData:
             return False
 
     def save(self):
+        # Convert recently seen into a format we can store
+        recently_seen = self.data.pop('recently_seen', {})
+        outgoing = {}
+        for key, when in recently_seen.items():
+            outgoing.setdefault(key[0], {
+                'hash': key[1],
+                'when': when,
+            })
+
+        self.data['recently_seen'] = outgoing
+
         with open(self.cfg_path, 'w') as f:
             f.write(json.dumps(self.data, indent=2))
 
@@ -99,18 +120,14 @@ def find_lockscreen_files(cfg):
             if(width < height):
                 continue
 
-            filehash = get_filehash(f)
-            if(recently_seen.get(f.name, {}).get('hash', '') == filehash):
+            key = (f.name, get_filehash(f))
+            if(key in recently_seen):
                 continue
 
             print(f" - Found candidate image of size {size}: {f.name}")
             print(f"   Dimensions: {width} x {height}")
 
             has_candidate = True
-            payload = {
-                'hash': filehash,
-                'when': runtime.timestamp()
-            }
 
             if(f.name in recently_seen):
                 suffix = get_random_suffix()
@@ -119,7 +136,7 @@ def find_lockscreen_files(cfg):
                 short_hash = f.name[:16]
 
             copyfile(f.path, os.path.join(staging, f"lock_screen_{short_hash}.jpg"))
-            recently_seen.setdefault(f.name, payload)
+            recently_seen.setdefault(key, runtime.timestamp())
 
     # Prune the recently seen list
     to_prune = set()
