@@ -3,16 +3,17 @@ import ctypes
 import hashlib
 import json
 import os
-import string
 import sys
+from pprint import pprint
 
 from datetime import datetime
-from random import choice, randrange
+from random import randrange
 from shutil import copyfile
 
 from PIL import Image
 
 
+CONFIG_VERSION = 2
 USERHOME = os.path.expanduser("~")
 LOCKSCREEN_PATH = os.path.join(USERHOME, "AppData", "Local", "Packages",
                                "Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy",
@@ -23,7 +24,7 @@ class ConfigData:
     def __init__(self, path):
         self.cfg_path = path
         self.data = {
-            'CONFIG_VERSION': 1,
+            'CONFIG_VERSION': CONFIG_VERSION,
             'files': {},
             'recently_seen': {},
             'previous': '',
@@ -37,17 +38,54 @@ class ConfigData:
         try:
             with open(self.cfg_path, 'r') as f:
                 self.data = json.loads(f.read())
-
-            if('CONFIG_VERSION' in self.data):
-                return True
-            else:
-                print("ERROR: Invalid configuration file!")
-                return False
-
         except FileNotFoundError:
             print(f"ERROR: Unable to locate config file: {cfg_path}")
             print("\nCreate a config file with the --create {target} option")
             return False
+
+        cfg_ver = self.data.get('CONFIG_VERSION')
+        if(not cfg_ver):
+            print("ERROR: Invalid configuration file!")
+            return False
+
+        if(cfg_ver < CONFIG_VERSION):
+            self.migrate()
+
+        return True
+
+    def migrate(self):
+        old_ver = self.data.get('CONFIG_VERSION')
+
+        while(old_ver < CONFIG_VERSION):
+            if(old_ver == 1):
+                print("Migrating configuration file to version 2")
+                target = self.data.get('target')
+                oldfiles = self.data.get('files')
+                newfiles = {}
+
+                for f, inpool in oldfiles.items():
+                    if not f.startswith('lock_screen_'):
+                        newfiles.setdefault(f, inpool)
+                        continue
+
+                    title = os.path.splitext(f)[0]
+                    old_hash = title.split('_')[2]
+
+                    if len(old_hash) != 16:
+                        newfiles.setdefault(f, inpool)
+                        continue
+
+                    fhash = get_filehash(os.path.join(target, f))
+                    filename = create_filename(old_hash, fhash)
+
+                    print(f" - Renaming {f} to {filename}")
+                    os.rename(os.path.join(target, f), os.path.join(target, filename))
+                    newfiles.setdefault(filename, inpool)
+
+                self.data['files'] = newfiles
+                self.data['CONFIG_VERSION'] = 2
+
+            old_ver += 1
 
     def save(self):
         with open(self.cfg_path, 'w') as f:
@@ -56,6 +94,10 @@ class ConfigData:
     def set(self, key, value):
         self.data[key] = value
         return self.data[key]
+
+
+def create_filename(oldname, filehash):
+    return f"lock_screen_{oldname[:8]}_{filehash[:8]}.jpg"
 
 
 def find_files(folder):
@@ -99,33 +141,24 @@ def find_lockscreen_files(cfg):
             if(width < height):
                 continue
 
-            filehash = get_filehash(f)
-            if(recently_seen.get(f.name, {}).get('hash', '') == filehash):
+            fhash = get_filehash(f)
+            filename = create_filename(f.name, fhash)
+
+            if filename in recently_seen or filename in cfg.get('files', {}):
                 continue
 
             print(f" - Found candidate image of size {size}: {f.name}")
             print(f"   Dimensions: {width} x {height}")
 
             has_candidate = True
-            payload = {
-                'hash': filehash,
-                'when': runtime.timestamp()
-            }
 
-            if(f.name in recently_seen):
-                suffix = get_random_suffix()
-                short_hash = f"{f.name[:16]}_{suffix}"
-            else:
-                short_hash = f.name[:16]
-
-            copyfile(f.path, os.path.join(staging, f"lock_screen_{short_hash}.jpg"))
-            recently_seen.setdefault(f.name, payload)
+            copyfile(f.path, os.path.join(staging, filename))
+            recently_seen.setdefault(filename, runtime.timestamp())
 
     # Prune the recently seen list
     to_prune = set()
-    for filename, payload in cfg.get('recently_seen', {}).items():
-        then = datetime.fromtimestamp(payload.get('when'))
-        delta = runtime - then
+    for filename, then in cfg.get('recently_seen', {}).items():
+        delta = runtime - datetime.fromtimestamp(then)
         if delta.days > 30:
             to_prune.add(delta)
 
@@ -153,7 +186,6 @@ def move_staging_files(cfg):
 
     papers = cfg.get('files', {})
 
-    # files = set()
     for f in os.listdir(staging):
         if(os.path.isfile(os.path.join(staging, f)) and f.lower().endswith('.jpg')):
             print(f" - Moving {f}")
@@ -163,11 +195,6 @@ def move_staging_files(cfg):
                 os.remove(os.path.join(staging, f))
 
             papers.setdefault(f, True)
-
-
-def get_random_suffix():
-    letters = string.ascii_lowercase
-    return ''.join(choice(letters) for i in range(8))
 
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
