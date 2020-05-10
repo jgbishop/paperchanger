@@ -1,10 +1,13 @@
 import argparse
 import ctypes
+import hashlib
 import json
 import os
+import string
 import sys
 
-from random import randrange
+from datetime import datetime
+from random import choice, randrange
 from shutil import copyfile
 
 from PIL import Image
@@ -22,7 +25,7 @@ class ConfigData:
         self.data = {
             'CONFIG_VERSION': 1,
             'files': {},
-            'lock_screen_pool': [],
+            'recently_seen': {},
             'previous': '',
             'target': '',
         }
@@ -48,7 +51,7 @@ class ConfigData:
 
     def save(self):
         with open(self.cfg_path, 'w') as f:
-            f.write(json.dumps(self.data))
+            f.write(json.dumps(self.data, indent=2))
 
     def set(self, key, value):
         self.data[key] = value
@@ -76,8 +79,8 @@ def find_lockscreen_files(cfg):
     if(not os.path.exists(staging)):
         os.mkdir(staging)
 
-    lspool = cfg.get('lock_screen_pool', [])
-    lspool_set = set(lspool)
+    recently_seen = cfg.get('recently_seen', {})
+    runtime = datetime.now()
 
     has_candidate = False
     for f in os.scandir(LOCKSCREEN_PATH):
@@ -96,23 +99,50 @@ def find_lockscreen_files(cfg):
             if(width < height):
                 continue
 
-            if(f.name in lspool_set):
+            filehash = get_filehash(f)
+            if(recently_seen.get(f.name, {}).get('hash', '') == filehash):
                 continue
 
             print(f" - Found candidate image of size {size}: {f.name}")
             print(f"   Dimensions: {width} x {height}")
 
             has_candidate = True
-            lspool.append(f.name)
-            short_hash = f.name[:16]
+            payload = {
+                'hash': filehash,
+                'when': runtime.timestamp()
+            }
+
+            if(f.name in recently_seen):
+                suffix = get_random_suffix()
+                short_hash = f"{f.name[:16]}_{suffix}"
+            else:
+                short_hash = f.name[:16]
 
             copyfile(f.path, os.path.join(staging, f"lock_screen_{short_hash}.jpg"))
+            recently_seen.setdefault(f.name, payload)
+
+    # Prune the recently seen list
+    to_prune = set()
+    for filename, payload in cfg.get('recently_seen', {}).items():
+        then = datetime.fromtimestamp(payload.get('when'))
+        delta = runtime - then
+        if delta.days > 30:
+            to_prune.add(delta)
+
+    for x in to_prune:
+        cfg.get('recently_seen', {}).pop(x, {})
 
     # Open Windows Explorer to the staging location
     if(has_candidate):
         os.startfile(staging)
     else:
         print(" - No candidates found")
+
+
+def get_filehash(file):
+    with open(file, 'rb') as f:
+        data = f.read()
+        return hashlib.blake2b(data).hexdigest()
 
 
 def move_staging_files(cfg):
@@ -135,10 +165,15 @@ def move_staging_files(cfg):
             papers.setdefault(f, True)
 
 
+def get_random_suffix():
+    letters = string.ascii_lowercase
+    return ''.join(choice(letters) for i in range(8))
+
+
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
 parser = argparse.ArgumentParser(description="Changes the desktop wallpaper.")
-parser.add_argument('config_file', default="paper_changer.cfg", nargs="?")
+parser.add_argument('config_file', default="paper_changer.json", nargs="?")
 parser.add_argument('--create', help="Create a new config file; pass in the target dir to use")
 parser.add_argument('--lockbrowse', action="store_true", help="Open the lock screen source folder")
 parser.add_argument('--lockscan', action="store_true",
