@@ -6,7 +6,6 @@ import os
 import sys
 from pprint import pprint
 
-from datetime import datetime
 from random import randrange
 from shutil import copyfile
 
@@ -26,7 +25,6 @@ class ConfigData:
         self.data = {
             'CONFIG_VERSION': CONFIG_VERSION,
             'files': {},
-            'recently_seen': {},
             'previous': '',
             'target': '',
         }
@@ -96,8 +94,8 @@ class ConfigData:
         return self.data[key]
 
 
-def create_filename(oldname, filehash):
-    return f"lock_screen_{oldname[:8]}_{filehash[:8]}.jpg"
+def create_filename(filehash):
+    return f"{filehash[:16]}.jpg"
 
 
 def find_files(folder):
@@ -121,9 +119,6 @@ def find_lockscreen_files(cfg):
     if(not os.path.exists(staging)):
         os.mkdir(staging)
 
-    recently_seen = cfg.get('recently_seen', {})
-    runtime = datetime.now()
-
     has_candidate = False
     for f in os.scandir(LOCKSCREEN_PATH):
         if(not f.is_file()):
@@ -141,29 +136,15 @@ def find_lockscreen_files(cfg):
             if(width < height):
                 continue
 
-            fhash = get_filehash(f)
-            filename = create_filename(f.name, fhash)
-
-            if filename in recently_seen or filename in cfg.get('files', {}):
+            filename = create_filename(get_filehash(f))
+            if filename in cfg.get('files', {}):
                 continue
 
-            print(f" - Found candidate image of size {size}: {f.name}")
+            print(f" - Found candidate image of size {size}: {f.name[:16]}")
             print(f"   Dimensions: {width} x {height}")
 
             has_candidate = True
-
             copyfile(f.path, os.path.join(staging, filename))
-            recently_seen.setdefault(filename, runtime.timestamp())
-
-    # Prune the recently seen list
-    to_prune = set()
-    for filename, then in cfg.get('recently_seen', {}).items():
-        delta = runtime - datetime.fromtimestamp(then)
-        if delta.days > 30:
-            to_prune.add(delta)
-
-    for x in to_prune:
-        cfg.get('recently_seen', {}).pop(x, {})
 
     # Open Windows Explorer to the staging location
     if(has_candidate):
