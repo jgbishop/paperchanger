@@ -1,0 +1,8 @@
+{
+	// Set this to the folder to be watched
+	"sourceDir": "",
+
+	// Don't modify anything beyond this
+	"filePool": {},
+	"previousFile": "",
+}
