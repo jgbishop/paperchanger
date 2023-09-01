@@ -1,52 +1,48 @@
 # Python Wallpaper Changer
 
-This script makes it easy to change desktop wallpaper to a random file in a given
-folder. It also provides support for grabbing new wallpaper images from the
-Microsoft Windows lock screen wallpapers.
+This script makes it easy to change desktop wallpaper to a random file in a
+given folder. It also provides support for grabbing new wallpaper images from
+the Microsoft Windows lock screen wallpapers.
 
 ## Installation
 
-1. Install the Pillow python package: `pip install Pillow`
+1. Install all package requirements:
+    * `pip install Pillow`
+    * `pip install send2trash`
 2. Place this script in a desired location.
-3. In that same location, create a folder in which to store your wallpaper images,
-noting the path to this target location.
-4. Issue the following command, passing the target location above in as the
-`<target>` parameter, to create a new configuration file:
-`python paperchanger.py --create <target>`
+3. Copy `config-template.json` to `config.json`.
+4. Set the `sourceDir` path in the `config.json` file to the path of the folder
+that contains your wallpaper image files.
 
 ## Usage
 
-Simply issue `python paperchanger.py` to change the desktop wallpaper to a random
+Simply issue `python chgpaper.py` to change the desktop wallpaper to a random
 image.
 
 ## Options
 
-The following command line options are available:
+The script accepts an _action_ parameter that may be one of the following
+options:
 
-**`{config_file}`**  
-The first positional argument is the name of the configuration file to read. If
-not specified, the default filename **paper_changer.cfg** will be read in.
+**change**  
+(Default action) Change the desktop wallpaper to a random file in the file pool.
 
-**`--create <target>`**  
-Create a new configuration file, using the specified target folder as the
-repository of files.
+**last**  
+Display the filename of the previously set wallpaper, along with a time and date
+stamp of when it was set.
 
-**`--lockbrowse`**  
-Open the Microsoft Windows lock screen image storage location in a Windows
-Explorer window.
+**open**  
+Open the `sourceDir` location in Windows Explorer.
 
-**`--lockscan`**  
-Scan the Microsoft Windows lock screen image storage location for new images. If
-any new images are found, the location is opened in a Windows Explorer window
-for you to preview the images.
+**openlock**  
+Open the lock screen content folder in Windows Explorer.
 
-**`--locksync`**  
-Move the images found by the `--lockscan` option to the file repository, adding
-them to the available image pool.
+**remove**  
+Moves the previously set wallpaper to the Recycle Bin.
 
-**`--pool`**  
-Show the current random selection pool.
+**scan**  
+Scan the lock screen content folder for new images.
 
-**`--sync`**  
-Synchronize the configuration file with the image pool, adding any new files
-that were found, and removing any files that are no longer present.
+**sync**  
+Move staged images (after a successful `scan` operation) into the `sourceDir`
+and add the files to the file pool.
