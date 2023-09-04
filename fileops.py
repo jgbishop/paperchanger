@@ -42,7 +42,7 @@ def browse_lockdir():
 def change_paper(filepath):
     # Taken from https://stackoverflow.com/a/44406182/1128047
     retval = (ctypes.WinDLL('user32', use_last_error=True)
-              .SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, filepath,
+              .SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, str(filepath),
                                      SPI_UPDATEINIFILE))
 
     if not retval:
