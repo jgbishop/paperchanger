@@ -59,7 +59,7 @@ if args.action == 'open':
 
 if args.action == 'remove':
     if previous_file:
-        recycle_file(previous_file)
+        recycle_file(config, previous_file)
         config.save()
     else:
         print("No previous file found to remove!")
