@@ -15,9 +15,14 @@ USERHOME = Path('~').expanduser()
 SPI_SETDESKWALLPAPER = 20
 SPI_UPDATEINIFILE = 1
 
-LOCKSCREEN_PATH = (USERHOME / "AppData" / "Local" / "Packages"
-                   / "Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy"
-                   / "LocalState" / "Assets")
+MS_WALLPAPER_PATHS = [
+    (USERHOME / "AppData" / "Local" / "Packages"
+     / "Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy" / "LocalState" / "Assets"),
+    (USERHOME / "AppData" / "Local" / "Packages"
+     / "MicrosoftWindows.Client.CBS_cw5n1h2txyewy" / "LocalCache" / "Microsoft" / "IrisService"),
+    (Path("C:/Windows") / "SystemApps" / "MicrosoftWindows.Client.CBS_cw5n1h2txyewy"
+     / "DesktopSpotlight" / "Assets" / "Images")
+]
 
 
 class ConfigFile(UserDict):
@@ -76,6 +81,39 @@ def get_filehash(file):
         return hashlib.blake2b(data).hexdigest()
 
 
+def locate_ms_files(config, staging, path):
+    found = 0
+
+    for f in os.scandir(path):
+        if not f.is_file():
+            found += locate_ms_files(config, staging, Path(f.path))
+            continue
+
+        # Only examine files larger than 100 KB, which are likely to be the
+        # images we're interested in.
+        size = Path(f.path).stat().st_size
+        if size < (1024 * 100):
+            continue
+
+        with Image.open(f.path) as img:
+            width, height = img.size
+
+            if width < height:
+                continue  # Skip portrait images
+
+            filename = create_filename(get_filehash(f))
+            if filename in config.get('filePool', {}):
+                continue
+
+            print(f" - Found candidate image of size {size}: {f.name[:16]}")
+            print(f"   Dimensions: {width} x {height}")
+
+            found += 1
+            copyfile(f.path, Path(staging) / filename)
+
+    return found
+
+
 def move_staging_files(config):
     source_dir = config.get('sourceDir')
     staging = Path(source_dir) / 'staging'
@@ -117,35 +155,13 @@ def scan_lockscreen_folder(config):
     if not staging.exists():
         staging.mkdir()
 
-    has_candidate = False
-    for f in os.scandir(LOCKSCREEN_PATH):
-        if not f.is_file():
-            continue
-
-        # Only examine files larger than 100 KB, which are likely to be the
-        # images we're interested in.
-        size = Path(f.path).stat().st_size
-        if size < (1024 * 100):
-            continue
-
-        with Image.open(f.path) as img:
-            width, height = img.size
-
-            if width < height:
-                continue  # Skip portrait images
-
-            filename = create_filename(get_filehash(f))
-            if filename in config.get('filePool', {}):
-                continue
-
-            print(f" - Found candidate image of size {size}: {f.name[:16]}")
-            print(f"   Dimensions: {width} x {height}")
-
-            has_candidate = True
-            copyfile(f.path, Path(staging) / filename)
+    found = 0
+    for idx, path in enumerate(MS_WALLPAPER_PATHS):
+        print(f"Scanning path {idx + 1} of {len(MS_WALLPAPER_PATHS)}")
+        found += locate_ms_files(config, staging, path)
 
     # Open Windows Explorer to the staging location
-    if has_candidate:
+    if found:
         os.startfile(staging)
     else:
         print(" - No candidates found")

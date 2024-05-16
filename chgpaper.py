@@ -67,7 +67,7 @@ if args.action == 'remove':
     sys.exit(0)
 
 if args.action == 'scan':
-    print("Scanning for lock screen images")
+    print("Scanning system for OS-provided images")
     scan_lockscreen_folder(config)
     sys.exit(0)
 
