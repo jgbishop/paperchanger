@@ -84,6 +84,9 @@ def get_filehash(file):
 def locate_ms_files(config, staging, path):
     found = 0
 
+    if not path.exists() or not path.is_dir():
+        return 0
+
     for f in os.scandir(path):
         if not f.is_file():
             found += locate_ms_files(config, staging, Path(f.path))
