@@ -12,9 +12,17 @@ from fileops import (
     string_to_datetime, validate_config)
 
 
+def refill_pool(file_pool):
+    print(" - Refilling the pool!")
+    for store in file_pool.values():
+        store['consumed'] = False
+
+    return list(file_pool.keys())
+
+
 script_dir = Path(os.path.realpath(__file__)).parent
 
-choices = ['change', 'last', 'open', 'openlock', 'remove', 'scan', 'sync']
+choices = ['change', 'last', 'new', 'open', 'openlock', 'refill', 'remove', 'scan', 'sync']
 parser = argparse.ArgumentParser(description="Changes the desktop wallpaper.")
 parser.add_argument('action', choices=choices, default='change', nargs='?')
 
@@ -66,6 +74,11 @@ if args.action == 'remove':
 
     sys.exit(0)
 
+if args.action == 'refill':
+    refill_pool(file_pool)
+    config.save()
+    sys.exit(0)
+
 if args.action == 'scan':
     print("Scanning system for OS-provided images")
     scan_lockscreen_folder(config)
@@ -86,13 +99,23 @@ available = [key for key, store in file_pool.items()
 print(f"Files left in the pool: {len(available)}")
 
 if not available:
-    print(" - Refilling the pool!")
-    for store in file_pool.values():
-        store['consumed'] = False
+    available = refill_pool(file_pool)
 
-    available = list(file_pool.keys())
+random_filename = ''
+if args.action == 'new':
+    unseen = []
+    for key, store in file_pool.items():
+        if not store.get('lastShown'):
+            unseen.append(key)
 
-random_filename = available[randrange(0, len(available))]
+    if unseen:
+        random_filename = unseen[randrange(0, len(unseen))]
+    else:
+        print("No unseen files found; falling back to the full pool")
+
+if not random_filename:
+    random_filename = available[randrange(0, len(available))]
+
 selected_file = Path(config.get('sourceDir')) / random_filename
 pool_entry = file_pool.get(random_filename, {})
 
